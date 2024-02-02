@@ -4,7 +4,7 @@ Config.BillingCommissions = { -- This is a percentage (0.10) == 10%
     burgershot = 0.10
     vineyard = 0.10
 }
-Config.Linux = true      -- True if linux
+Config.Linux = false      -- True if linux
 Config.TweetDuration = 12 -- How many hours to load tweets (12 will load the past 12 hours of tweets)
 Config.RepeatTimeout = 2000
 Config.CallRepeats = 10
@@ -159,6 +159,18 @@ Config.PhoneApplications = {
         slot = 14,
         Alerts = 0,
     },
+    --[[
+    ['meos'] = {
+        app = 'meos',
+        color = '#004682',
+        icon = 'fas fa-ad',
+        tooltipText = 'MDT',
+        job = 'police',
+        blockedjobs = {},
+        slot = 15,
+        Alerts = 0,
+    },
+    --]]
 }
 Config.MaxSlots = 20
 
