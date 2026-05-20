@@ -1,4 +1,5 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+local QBCore = exports['qb-core']:GetCoreObject({ 'Functions', 'Commands' })
+local sharedVehicles = exports['qb-core']:GetShared('Vehicles')
 local QBPhone = {}
 local AppAlerts = {}
 local MentionedTweets = {}
@@ -12,6 +13,11 @@ local bannedCharacters = { '%', '$', ';' }
 local TWData = {}
 
 -- Functions
+
+local function Round(value, numDecimalPlaces)
+    local mult = 10 ^ (numDecimalPlaces or 0)
+    return math.floor(value * mult + 0.5) / mult
+end
 
 local function GetOnlineStatus(number)
     local Target = QBCore.Functions.GetPlayerByPhone(number)
@@ -153,8 +159,8 @@ end
 exports('sendNewMailToOffline', sendNewMailToOffline)
 -- Callbacks
 
-QBCore.Functions.CreateCallback("qb-phone:server:GetInvoices", function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
+QBCore.Functions.CreateCallback('qb-phone:server:GetInvoices', function(source, cb)
+    local Player = exports['qb-core']:GetPlayer(source)
 
     if Player then
         local invoices = MySQL.query.await('SELECT * FROM phone_invoices WHERE citizenid = ?', { Player.PlayerData.citizenid })
@@ -198,7 +204,7 @@ end)
 
 QBCore.Functions.CreateCallback('qb-phone:server:GetPhoneData', function(source, cb)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     if Player ~= nil then
         local PhoneData = {
             Applications = {},
@@ -282,15 +288,15 @@ QBCore.Functions.CreateCallback('qb-phone:server:GetPhoneData', function(source,
 end)
 
 QBCore.Functions.CreateCallback('qb-phone:server:PayInvoice', function(source, cb, society, amount, invoiceId, sendercitizenid)
-    local Ply = QBCore.Functions.GetPlayer(source)
+    local Ply = exports['qb-core']:GetPlayer(source)
     local SenderPly = QBCore.Functions.GetPlayerByCitizenId(sendercitizenid)
     local invoiceMailData = nil
     if Ply then
         local exists = MySQL.query.await('select count(1) as count FROM phone_invoices WHERE id = ? and citizenid = ?', { invoiceId, Ply.PlayerData.citizenid })
 
-        if exists[1] and exists[1]["count"] == 1 then
+        if exists[1] and exists[1]['count'] == 1 then
             if SenderPly and Config.BillingCommissions[society] then
-                local commission = QBCore.Shared.Round(amount * Config.BillingCommissions[society])
+                local commission = Round(amount * Config.BillingCommissions[society])
                 SenderPly.Functions.AddMoney('bank', commission)
                 invoiceMailData = {
                     sender = 'Billing Department',
@@ -309,7 +315,7 @@ QBCore.Functions.CreateCallback('qb-phone:server:PayInvoice', function(source, c
                 if invoiceMailData then
                     exports['qb-phone']:sendNewMailToOffline(sendercitizenid, invoiceMailData)
                 end
-                TriggerEvent("qb-phone:server:paidInvoice", source, invoiceId)
+                TriggerEvent('qb-phone:server:paidInvoice', source, invoiceId)
                 exports['qb-banking']:AddMoney(society, amount, 'Phone invoice')
                 cb(true)
                 return
@@ -320,12 +326,12 @@ QBCore.Functions.CreateCallback('qb-phone:server:PayInvoice', function(source, c
 end)
 
 QBCore.Functions.CreateCallback('qb-phone:server:DeclineInvoice', function(source, cb, _, _, invoiceId)
-    local Ply = QBCore.Functions.GetPlayer(source)
+    local Ply = exports['qb-core']:GetPlayer(source)
     if Ply then
         local exists = MySQL.query.await('select count(1) as count FROM phone_invoices WHERE id = ? and citizenid = ? and candecline = ?', { invoiceId, Ply.PlayerData.citizenid, 1 })
 
-        if exists[1] and exists[1]["count"] == 1 then
-            TriggerEvent("qb-phone:server:declinedInvoice", source, invoiceId)
+        if exists[1] and exists[1]['count'] == 1 then
+            TriggerEvent('qb-phone:server:declinedInvoice', source, invoiceId)
             MySQL.query('DELETE FROM phone_invoices WHERE id = ? and citizenid = ? and candecline = ?', { invoiceId, Ply.PlayerData.citizenid, 1 })
             cb(true)
             return
@@ -442,7 +448,7 @@ QBCore.Functions.CreateCallback('qb-phone:server:GetVehicleSearchResults', funct
             local player = MySQL.query.await('SELECT * FROM players WHERE citizenid = ?', { result[k].citizenid })
             if player[1] ~= nil then
                 local charinfo = json.decode(player[1].charinfo)
-                local vehicleInfo = QBCore.Shared.Vehicles[result[k].vehicle]
+                local vehicleInfo = sharedVehicles[result[k].vehicle]
                 if vehicleInfo ~= nil then
                     searchData[#searchData + 1] = {
                         plate = result[k].plate,
@@ -530,9 +536,9 @@ QBCore.Functions.CreateCallback('qb-phone:server:ScanPlate', function(source, cb
 end)
 
 QBCore.Functions.CreateCallback('qb-phone:server:HasPhone', function(source, cb)
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = exports['qb-core']:GetPlayer(source)
     if Player ~= nil then
-        local HasPhone = Player.Functions.GetItemByName('phone')
+        local HasPhone = Player.GetItemByName('phone')
         if HasPhone ~= nil then
             cb(true)
         else
@@ -552,13 +558,13 @@ QBCore.Functions.CreateCallback('qb-phone:server:CanTransferMoney', function(sou
     iban = newiban
     amount = tonumber(newAmount)
 
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = exports['qb-core']:GetPlayer(source)
     if (Player.PlayerData.money.bank - amount) >= 0 then
         local query = '%"account":"' .. iban .. '"%'
         local result = MySQL.query.await('SELECT * FROM players WHERE charinfo LIKE ?', { query })
         if result[1] ~= nil then
             local Reciever = QBCore.Functions.GetPlayerByCitizenId(result[1].citizenid)
-            Player.Functions.RemoveMoney('bank', amount)
+            Player.RemoveMoney('bank', amount)
             if Reciever ~= nil then
                 Reciever.Functions.AddMoney('bank', amount)
             else
@@ -576,7 +582,7 @@ end)
 QBCore.Functions.CreateCallback('qb-phone:server:GetCurrentLawyers', function(_, cb)
     local Lawyers = {}
     for _, v in pairs(QBCore.Functions.GetPlayers()) do
-        local Player = QBCore.Functions.GetPlayer(v)
+        local Player = exports['qb-core']:GetPlayer(v)
         if Player ~= nil then
             if (Player.PlayerData.job.name == 'lawyer' or Player.PlayerData.job.name == 'realestate' or
                     Player.PlayerData.job.name == 'mechanic' or Player.PlayerData.job.name == 'taxi' or
@@ -606,7 +612,7 @@ QBCore.Functions.CreateCallback('qb-phone:server:UploadToFivemerr', function(sou
     local src = source
 
     if Config.Fivemerr == true and FivemerrApiToken == '' then
-        print("^1--- Fivemerr is enabled but no API token has been specified. ---^7")
+        print('^1--- Fivemerr is enabled but no API token has been specified. ---^7')
         return cb(nil)
     end
 
@@ -616,12 +622,12 @@ QBCore.Functions.CreateCallback('qb-phone:server:UploadToFivemerr', function(sou
         if err then return cb(nil) end
         PerformHttpRequest(WebHook, function(status, response)
             if status ~= 200 then
-                print("^1--- ERROR UPLOADING IMAGE: " .. status .. " ---^7")
+                print('^1--- ERROR UPLOADING IMAGE: ' .. status .. ' ---^7')
                 cb(nil)
             end
 
             cb(response)
-        end, "POST", json.encode({ data = data }), {
+        end, 'POST', json.encode({ data = data }), {
             ['Authorization'] = FivemerrApiToken,
             ['Content-Type'] = 'application/json'
         })
@@ -632,7 +638,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:AddAdvert', function(msg, url)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     local CitizenId = Player.PlayerData.citizenid
     if Adverts[CitizenId] ~= nil then
         Adverts[CitizenId].message = msg
@@ -651,7 +657,7 @@ RegisterNetEvent('qb-phone:server:AddAdvert', function(msg, url)
 end)
 
 RegisterNetEvent('qb-phone:server:DeleteAdvert', function()
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = exports['qb-core']:GetPlayer(source)
     local citizenid = Player.PlayerData.citizenid
     Adverts[citizenid] = nil
     TriggerClientEvent('qb-phone:client:UpdateAdvertsDel', -1, Adverts)
@@ -659,7 +665,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:SetCallState', function(bool)
     local src = source
-    local Ply = QBCore.Functions.GetPlayer(src)
+    local Ply = exports['qb-core']:GetPlayer(src)
     if Calls[Ply.PlayerData.citizenid] ~= nil then
         Calls[Ply.PlayerData.citizenid].inCall = bool
     else
@@ -670,7 +676,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:RemoveMail', function(MailId)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.query('DELETE FROM player_mails WHERE mailid = ? AND citizenid = ?', { MailId, Player.PlayerData.citizenid })
     SetTimeout(100, function()
         local mails = MySQL.query.await('SELECT * FROM player_mails WHERE citizenid = ? ORDER BY `date` ASC', { Player.PlayerData.citizenid })
@@ -687,7 +693,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:sendNewMail', function(mailData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     if mailData.button == nil then
         MySQL.insert('INSERT INTO player_mails (`citizenid`, `sender`, `subject`, `message`, `mailid`, `read`) VALUES (?, ?, ?, ?, ?, ?)', { Player.PlayerData.citizenid, mailData.sender, mailData.subject, mailData.message, GenerateMailId(), 0 })
     else
@@ -731,7 +737,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:ClearButtonData', function(mailId)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.update('UPDATE player_mails SET button = ? WHERE mailid = ? AND citizenid = ?', { '', mailId, Player.PlayerData.citizenid })
     SetTimeout(200, function()
         local mails = MySQL.query.await('SELECT * FROM player_mails WHERE citizenid = ? ORDER BY `date` ASC', { Player.PlayerData.citizenid })
@@ -748,7 +754,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:MentionedPlayer', function(firstName, lastName, TweetMessage)
     for _, v in pairs(QBCore.Functions.GetPlayers()) do
-        local Player = QBCore.Functions.GetPlayer(v)
+        local Player = exports['qb-core']:GetPlayer(v)
         if Player ~= nil then
             if (Player.PlayerData.charinfo.firstname == firstName and Player.PlayerData.charinfo.lastname == lastName) then
                 QBPhone.SetPhoneAlerts(Player.PlayerData.citizenid, 'twitter')
@@ -770,7 +776,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:CallContact', function(TargetData, CallId, AnonymousCall)
     local src = source
-    local Ply = QBCore.Functions.GetPlayer(src)
+    local Ply = exports['qb-core']:GetPlayer(src)
     local Target = QBCore.Functions.GetPlayerByPhone(TargetData.number)
     if Target ~= nil then
         TriggerClientEvent('qb-phone:client:GetCalled', Target.PlayerData.source, Ply.PlayerData.charinfo.phone, CallId, AnonymousCall)
@@ -779,13 +785,13 @@ end)
 
 RegisterNetEvent('qb-phone:server:BillingEmail', function(data, paid)
     for _, v in pairs(QBCore.Functions.GetPlayers()) do
-        local target = QBCore.Functions.GetPlayer(v)
+        local target = exports['qb-core']:GetPlayer(v)
         if target.PlayerData.job.name == data.society then
             if paid then
-                local name = '' .. QBCore.Functions.GetPlayer(source).PlayerData.charinfo.firstname .. ' ' .. QBCore.Functions.GetPlayer(source).PlayerData.charinfo.lastname .. ''
+                local name = '' .. exports['qb-core']:GetPlayer(source).PlayerData.charinfo.firstname .. ' ' .. exports['qb-core']:GetPlayer(source).PlayerData.charinfo.lastname .. ''
                 TriggerClientEvent('qb-phone:client:BillingEmail', target.PlayerData.source, data, true, name)
             else
-                local name = '' .. QBCore.Functions.GetPlayer(source).PlayerData.charinfo.firstname .. ' ' .. QBCore.Functions.GetPlayer(source).PlayerData.charinfo.lastname .. ''
+                local name = '' .. exports['qb-core']:GetPlayer(source).PlayerData.charinfo.firstname .. ' ' .. exports['qb-core']:GetPlayer(source).PlayerData.charinfo.lastname .. ''
                 TriggerClientEvent('qb-phone:client:BillingEmail', target.PlayerData.source, data, false, name)
             end
         end
@@ -807,12 +813,12 @@ end)
 
 RegisterNetEvent('qb-phone:server:SetPhoneAlerts', function(app, alerts)
     local src = source
-    local CitizenId = QBCore.Functions.GetPlayer(src).citizenid
+    local CitizenId = exports['qb-core']:GetPlayer(src).citizenid
     QBPhone.SetPhoneAlerts(CitizenId, app, alerts)
 end)
 
 RegisterNetEvent('qb-phone:server:DeleteTweet', function(tweetId)
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = exports['qb-core']:GetPlayer(source)
     local delete = false
     local TID = tweetId
     local Data = MySQL.scalar.await('SELECT citizenid FROM phone_tweets WHERE tweetId = ?', { TID })
@@ -849,7 +855,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:TransferMoney', function(iban, amount)
     local src = source
-    local sender = QBCore.Functions.GetPlayer(src)
+    local sender = exports['qb-core']:GetPlayer(src)
 
     local query = '%' .. iban .. '%'
     local result = MySQL.query.await('SELECT * FROM players WHERE charinfo LIKE ?', { query })
@@ -867,7 +873,7 @@ RegisterNetEvent('qb-phone:server:TransferMoney', function(iban, amount)
             end
         else
             local moneyInfo = json.decode(result[1].money)
-            moneyInfo.bank = QBCore.Shared.Round(moneyInfo.bank + amount)
+            moneyInfo.bank = Round(moneyInfo.bank + amount)
             MySQL.update('UPDATE players SET money = ? WHERE citizenid = ?',
                 { json.encode(moneyInfo), result[1].citizenid })
             sender.Functions.RemoveMoney('bank', amount, 'phone-transfered')
@@ -879,7 +885,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:EditContact', function(newName, newNumber, newIban, oldName, oldNumber, _)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.update(
         'UPDATE player_contacts SET name = ?, number = ?, iban = ? WHERE citizenid = ? AND name = ? AND number = ?',
         { newName, newNumber, newIban, Player.PlayerData.citizenid, oldName, oldNumber })
@@ -887,20 +893,20 @@ end)
 
 RegisterNetEvent('qb-phone:server:RemoveContact', function(Name, Number)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.query('DELETE FROM player_contacts WHERE name = ? AND number = ? AND citizenid = ?',
         { Name, Number, Player.PlayerData.citizenid })
 end)
 
 RegisterNetEvent('qb-phone:server:AddNewContact', function(name, number, iban)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.insert('INSERT INTO player_contacts (citizenid, name, number, iban) VALUES (?, ?, ?, ?)', { Player.PlayerData.citizenid, tostring(name), tostring(number), tostring(iban) })
 end)
 
 RegisterNetEvent('qb-phone:server:UpdateMessages', function(ChatMessages, ChatNumber, _)
     local src = source
-    local SenderData = QBCore.Functions.GetPlayer(src)
+    local SenderData = exports['qb-core']:GetPlayer(src)
     local query = '%' .. ChatNumber .. '%'
     local Player = MySQL.query.await('SELECT * FROM players WHERE charinfo LIKE ?', { query })
     if Player[1] ~= nil then
@@ -943,7 +949,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:AddRecentCall', function(type, data)
     local src = source
-    local Ply = QBCore.Functions.GetPlayer(src)
+    local Ply = exports['qb-core']:GetPlayer(src)
     local Hour = os.date('%H')
     local Minute = os.date('%M')
     local label = Hour .. ':' .. Minute
@@ -974,18 +980,18 @@ end)
 
 RegisterNetEvent('qb-phone:server:SaveMetaData', function(MData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     local result = MySQL.query.await('SELECT * FROM players WHERE citizenid = ?', { Player.PlayerData.citizenid })
     local MetaData = json.decode(result[1].metadata)
     MetaData.phone = MData
     MySQL.update('UPDATE players SET metadata = ? WHERE citizenid = ?',
         { json.encode(MetaData), Player.PlayerData.citizenid })
-    Player.Functions.SetMetaData('phone', MData)
+    Player.SetMetaData('phone', MData)
 end)
 
 RegisterNetEvent('qb-phone:server:GiveContactDetails', function(PlayerId)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     local SuggestionData = {
         name = {
             [1] = Player.PlayerData.charinfo.firstname,
@@ -1000,7 +1006,7 @@ end)
 
 RegisterNetEvent('qb-phone:server:AddTransaction', function(data)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.insert('INSERT INTO crypto_transactions (citizenid, title, message) VALUES (?, ?, ?)', {
         Player.PlayerData.citizenid,
         data.TransactionTitle,
@@ -1010,38 +1016,38 @@ end)
 
 RegisterNetEvent('qb-phone:server:InstallApplication', function(ApplicationData)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     Player.PlayerData.metadata['phonedata'].InstalledApps[ApplicationData.app] = ApplicationData
-    Player.Functions.SetMetaData('phonedata', Player.PlayerData.metadata['phonedata'])
+    Player.SetMetaData('phonedata', Player.PlayerData.metadata['phonedata'])
 
     -- TriggerClientEvent('qb-phone:RefreshPhone', src)
 end)
 
 RegisterNetEvent('qb-phone:server:RemoveInstallation', function(App)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     Player.PlayerData.metadata['phonedata'].InstalledApps[App] = nil
-    Player.Functions.SetMetaData('phonedata', Player.PlayerData.metadata['phonedata'])
+    Player.SetMetaData('phonedata', Player.PlayerData.metadata['phonedata'])
 
     -- TriggerClientEvent('qb-phone:RefreshPhone', src)
 end)
 
 RegisterNetEvent('qb-phone:server:addImageToGallery', function(image)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     MySQL.insert('INSERT INTO phone_gallery (`citizenid`, `image`) VALUES (?, ?)', { Player.PlayerData.citizenid, image })
 end)
 
 RegisterNetEvent('qb-phone:server:getImageFromGallery', function()
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     local images = MySQL.query.await('SELECT * FROM phone_gallery WHERE citizenid = ? ORDER BY `date` DESC', { Player.PlayerData.citizenid })
     TriggerClientEvent('qb-phone:refreshImages', src, images)
 end)
 
 RegisterNetEvent('qb-phone:server:RemoveImageFromGallery', function(data)
     local src = source
-    local Player = QBCore.Functions.GetPlayer(src)
+    local Player = exports['qb-core']:GetPlayer(src)
     local image = data.image
     MySQL.query('DELETE FROM phone_gallery WHERE citizenid = ? AND image = ?', { Player.PlayerData.citizenid, image })
 end)
@@ -1056,21 +1062,21 @@ end)
 -- Command
 
 QBCore.Commands.Add('setmetadata', 'Set Player Metadata (God Only)', {}, false, function(source, args)
-    local Player = QBCore.Functions.GetPlayer(source)
+    local Player = exports['qb-core']:GetPlayer(source)
     if args[1] then
         if args[1] == 'trucker' then
             if args[2] then
                 local newrep = Player.PlayerData.metadata['jobrep']
                 newrep.trucker = tonumber(args[2])
-                Player.Functions.SetMetaData('jobrep', newrep)
+                Player.SetMetaData('jobrep', newrep)
             end
         end
     end
 end, 'god')
 
 QBCore.Commands.Add('bill', 'Bill A Player', { { name = 'id', help = 'Player ID' }, { name = 'amount', help = 'Fine Amount' } }, false, function(source, args)
-    local biller = QBCore.Functions.GetPlayer(source)
-    local billed = QBCore.Functions.GetPlayer(tonumber(args[1]))
+    local biller = exports['qb-core']:GetPlayer(source)
+    local billed = exports['qb-core']:GetPlayer(tonumber(args[1]))
     local amount = tonumber(args[2])
     if biller.PlayerData.job.name == 'police' or biller.PlayerData.job.name == 'ambulance' or biller.PlayerData.job.name == 'mechanic' then
         if billed ~= nil then

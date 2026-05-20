@@ -7,8 +7,8 @@ Config.RepeatTimeout = 2000
 Config.CallRepeats = 10
 Config.OpenPhone = 'M'
 
--- Set this to true if you wish to use Fivemerr (https://fivemerr.com/) for media uploads. 
--- Ensure to add your API key to server/main.lua 
+-- Set this to true if you wish to use Fivemerr (https://fivemerr.com/) for media uploads.
+-- Ensure to add your API key to server/main.lua
 Config.Fivemerr = false
 
 Config.PhoneApplications = {

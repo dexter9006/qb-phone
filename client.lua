@@ -1,7 +1,10 @@
-local QBCore = exports['qb-core']:GetCoreObject()
+local QBCore = exports['qb-core']:GetCoreObject({ 'Functions' })
+local sharedVehicles = exports['qb-core']:GetShared('Vehicles')
 local PlayerJob = {}
 local patt = '[?!@#]'
 local frontCam = false
+local phoneProp = 0
+local phoneModel = `prop_npc_phone_02`
 PhoneData = {
     MetaData = {},
     isOpen = false,
@@ -27,6 +30,63 @@ PhoneData = {
 }
 
 -- Functions
+
+local function LoadAnimation(dict)
+    RequestAnimDict(dict)
+    while not HasAnimDictLoaded(dict) do
+        Wait(1)
+    end
+end
+
+local function CheckAnimLoop()
+    CreateThread(function()
+        while PhoneData.AnimationData.lib ~= nil and PhoneData.AnimationData.anim ~= nil do
+            local ped = PlayerPedId()
+            if not IsEntityPlayingAnim(ped, PhoneData.AnimationData.lib, PhoneData.AnimationData.anim, 3) then
+                LoadAnimation(PhoneData.AnimationData.lib)
+                TaskPlayAnim(ped, PhoneData.AnimationData.lib, PhoneData.AnimationData.anim, 3.0, 3.0, -1, 50, 0, false, false, false)
+            end
+            Wait(500)
+        end
+    end)
+end
+
+function newPhoneProp()
+    deletePhone()
+    RequestModel(phoneModel)
+    while not HasModelLoaded(phoneModel) do
+        Wait(1)
+    end
+    phoneProp = CreateObject(phoneModel, 1.0, 1.0, 1.0, 1, 1, 0)
+
+    local bone = GetPedBoneIndex(PlayerPedId(), 28422)
+    if phoneModel == `prop_cs_phone_01` then
+        AttachEntityToEntity(phoneProp, PlayerPedId(), bone, 0.0, 0.0, 0.0, 50.0, 320.0, 50.0, 1, 1, 0, 0, 2, 1)
+    else
+        AttachEntityToEntity(phoneProp, PlayerPedId(), bone, 0.0, 0.0, 0.0, 0.0, 0.0, 0.0, 1, 1, 0, 0, 2, 1)
+    end
+end
+
+function deletePhone()
+    if phoneProp ~= 0 then
+        DeleteObject(phoneProp)
+        phoneProp = 0
+    end
+end
+
+function DoPhoneAnimation(anim)
+    local ped = PlayerPedId()
+    local AnimationLib = 'cellphone@'
+    local AnimationStatus = anim
+    if IsPedInAnyVehicle(ped, false) then
+        AnimationLib = 'anim@cellphone@in_car@ps'
+    end
+    LoadAnimation(AnimationLib)
+    TaskPlayAnim(ped, AnimationLib, AnimationStatus, 3.0, 3.0, -1, 50, 0, false, false, false)
+    PhoneData.AnimationData.lib = AnimationLib
+    PhoneData.AnimationData.anim = AnimationStatus
+    CheckAnimLoop()
+end
 
 function string:split(delimiter)
     local result = {}
@@ -978,8 +1038,8 @@ RegisterNUICallback('FetchVehicleScan', function(_, cb)
     QBCore.Functions.TriggerCallback('qb-phone:server:ScanPlate', function(result)
         QBCore.Functions.TriggerCallback('police:IsPlateFlagged', function(flagged)
             result.isFlagged = flagged
-            if QBCore.Shared.Vehicles[vehname] ~= nil then
-                result.label = QBCore.Shared.Vehicles[vehname]['name']
+            if sharedVehicles[vehname] ~= nil then
+                result.label = sharedVehicles[vehname]['name']
             else
                 result.label = 'Unknown brand..'
             end
@@ -1480,14 +1540,26 @@ RegisterNetEvent('QBCore:Client:OnPlayerUnload', function()
     }
 end)
 
-RegisterNetEvent('QBCore:Client:OnJobUpdate', function(JobInfo)
-    SendNUIMessage({
-        action = 'UpdateApplications',
-        JobData = JobInfo,
-        applications = Config.PhoneApplications
-    })
+RegisterNetEvent('QBCore:Client:OnPlayerUpdated', function(key, val)
+    if key == 'job' then
+        local JobInfo = val
+        SendNUIMessage({
+            action = 'UpdateApplications',
+            JobData = JobInfo,
+            applications = Config.PhoneApplications
+        })
 
-    PlayerJob = JobInfo
+        PlayerJob = JobInfo
+    elseif key == 'all' then
+        local JobInfo = val.job
+        SendNUIMessage({
+            action = 'UpdateApplications',
+            JobData = JobInfo,
+            applications = Config.PhoneApplications
+        })
+
+        PlayerJob = JobInfo
+    end
 end)
 
 -- Events
