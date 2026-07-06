@@ -1,6 +1,14 @@
 Config = Config or {}
 Config.BillingCommissions = { -- This is a percentage (0.10) == 10%
-    mechanic = 0.10
+    bennys = 0.05,
+    lscustom = 0.05,
+    lsharmony = 0.05,
+    beeker = 0.05,
+    mechanic3 = 0.05,
+    taxi = 0.05,
+    burgershot = 0.10,
+    vineyard = 0.10
+
 }
 Config.TweetDuration = 12 -- How many hours to load tweets (12 will load the past 12 hours of tweets)
 Config.RepeatTimeout = 2000
@@ -108,6 +116,7 @@ Config.PhoneApplications = {
         slot = 9,
         Alerts = 0,
     },
+    --[[
     ['racing'] = {
         app = 'racing',
         color = '#353b48',
@@ -118,6 +127,7 @@ Config.PhoneApplications = {
         slot = 10,
         Alerts = 0,
     },
+    --]]
     ['houses'] = {
         app = 'houses',
         color = '#27ae60',
@@ -161,6 +171,7 @@ Config.PhoneApplications = {
         slot = 14,
         Alerts = 0,
     },
+    --[[
     ['meos'] = {
         app = 'meos',
         color = '#004682',
@@ -171,6 +182,7 @@ Config.PhoneApplications = {
         slot = 15,
         Alerts = 0,
     },
+    --]]
 }
 Config.MaxSlots = 20
 
